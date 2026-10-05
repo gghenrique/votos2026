@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mapa de Votação por Município - PE 2026</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-primary:#0f172a; --bg-card:#1e293b; --text-main:#f8fafc;
+    --text-muted:#94a3b8; --accent-hover:#818cf8; --accent-selected:#f59e0b;
+    --border-color:#334155;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Inter',sans-serif;background:var(--bg-primary);color:var(--text-main);
+    display:flex;flex-direction:column;height:100vh;overflow:hidden}
+  header{background:var(--bg-card);padding:.8rem 1.5rem;border-bottom:1px solid var(--border-color);
+    display:flex;justify-content:space-between;align-items:center;z-index:1000;
+    box-shadow:0 4px 6px -1px rgba(0,0,0,.3);gap:1rem;flex-wrap:wrap}
+  .header-title h1{font-size:1.15rem;font-weight:700;display:flex;align-items:center;gap:.5rem}
+  .header-title p{font-size:.78rem;color:var(--text-muted)}
+  .search-box{position:relative;width:280px}
+  .search-box input{width:100%;padding:.55rem 1rem;border-radius:8px;
+    border:1px solid var(--border-color);background:var(--bg-primary);color:var(--text-main);
+    font-size:.875rem;outline:none;transition:border-color .2s}
+  .search-box input:focus{border-color:var(--accent-hover)}
+  .main-container{display:flex;flex:1;position:relative}
+  #map{flex:1;height:100%;background:#0f172a}
+  .sidebar{width:330px;background:var(--bg-card);border-left:1px solid var(--border-color);
+    padding:1.2rem;overflow-y:auto;display:flex;flex-direction:column;gap:1rem}
+  .stat-card{background:var(--bg-primary);border:1px solid var(--border-color);
+    border-radius:8px;padding:.85rem 1rem}
+  .stat-card h3{font-size:.72rem;text-transform:uppercase;color:var(--text-muted);
+    letter-spacing:.05em;margin-bottom:.35rem}
+  .stat-card .number{font-size:1.35rem;font-weight:700;color:var(--accent-hover)}
+  .stat-card .sub{font-size:.78rem;color:var(--text-muted);margin-top:.25rem}
+  .select-wrap{background:var(--bg-primary);border:1px solid var(--border-color);
+    border-radius:8px;padding:.9rem 1rem}
+  .select-wrap label{display:block;font-size:.72rem;text-transform:uppercase;
+    color:var(--text-muted);letter-spacing:.04em;margin-bottom:.45rem}
+  .select-wrap select{width:100%;padding:.55rem .7rem;border-radius:6px;
+    border:1px solid var(--border-color);background:var(--bg-card);color:var(--text-main);
+    font-family:inherit;font-size:.85rem;outline:none;cursor:pointer}
+  .cargo-tabs{display:grid;grid-template-columns:1fr 1fr;gap:.35rem;
+    padding:.25rem;border-radius:7px;background:#111c31}
+  .cargo-tab{padding:.6rem .4rem;border:0;border-radius:5px;background:transparent;
+    color:var(--text-muted);font-family:inherit;font-size:.75rem;font-weight:700;
+    cursor:pointer;transition:background-color .2s,color .2s}
+  .cargo-tab.active{background:#4f46e5;color:#fff;box-shadow:0 2px 6px rgba(0,0,0,.35)}
+  .btn{display:block;width:100%;padding:.6rem .9rem;border-radius:6px;border:0;
+    background:var(--accent-hover);color:#0b1f44;font-family:inherit;font-weight:700;
+    font-size:.83rem;cursor:pointer;transition:background .15s}
+  .btn:hover{background:#a5b4fc}
+  .legend-box{display:flex;flex-direction:column;gap:.45rem;font-size:.8rem}
+  .legend-item{display:flex;align-items:center;gap:.6rem}
+  .color-swatch{width:24px;height:14px;border-radius:3px;flex-shrink:0}
+  .top-list{display:flex;flex-direction:column;gap:.35rem;font-size:.8rem}
+  .top-list .row{display:flex;justify-content:space-between;gap:.5rem;
+    padding:.3rem .4rem;border-radius:4px;background:#0b1220}
+  .top-list .row span:first-child{color:var(--text-muted);overflow:hidden;
+    text-overflow:ellipsis;white-space:nowrap;flex:1}
+  .top-list .row span:last-child{font-weight:700;color:var(--accent-hover)}
+  #loading{position:absolute;top:0;left:0;width:100%;height:100%;
+    background:rgba(15,23,42,.9);backdrop-filter:blur(4px);z-index:2000;
+    display:flex;flex-direction:column;justify-content:center;align-items:center;gap:1rem}
+  .spinner{width:48px;height:48px;border:4px solid var(--border-color);
+    border-top-color:var(--accent-hover);border-radius:50%;animation:spin 1s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;
+    background:rgba(0,0,0,.75);backdrop-filter:blur(5px);z-index:3000;
+    display:none;justify-content:center;align-items:center;padding:1rem}
+  .modal-card{background:var(--bg-card);border:1px solid var(--border-color);
+    border-radius:12px;width:100%;max-width:560px;padding:1.5rem;
+    box-shadow:0 20px 25px -5px rgba(0,0,0,.5);position:relative;
+    animation:modalFadeIn .2s ease-out;max-height:90vh;overflow-y:auto}
+  @keyframes modalFadeIn{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:scale(1)}}
+  .modal-close{position:absolute;top:1rem;right:1rem;background:none;border:none;
+    color:var(--text-muted);font-size:1.5rem;cursor:pointer;line-height:1}
+  .modal-close:hover{color:var(--text-main)}
+  .modal-header h2{font-size:1.4rem;font-weight:700;color:var(--accent-hover);padding-right:2rem}
+  .modal-header .sub{font-size:.85rem;color:var(--text-muted);margin-bottom:1.2rem}
+  .modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:.7rem}
+  .info-group{background:var(--bg-primary);padding:.7rem .9rem;border-radius:8px;
+    border:1px solid var(--border-color)}
+  .info-group label{font-size:.7rem;color:var(--text-muted);text-transform:uppercase;
+    display:block;margin-bottom:.2rem}
+  .info-group .value{font-size:1rem;font-weight:600;color:var(--text-main)}
+  .info-group .value.big{font-size:1.4rem;color:var(--accent-hover);font-weight:800}
+  .search-modal-input{width:100%;padding:.7rem 1rem;border-radius:8px;
+    border:1px solid var(--border-color);background:var(--bg-primary);color:var(--text-main);
+    font-family:inherit;font-size:.9rem;outline:none;margin-bottom:.8rem}
+  .search-modal-input:focus{border-color:var(--accent-hover)}
+  .search-results{max-height:340px;overflow-y:auto;display:flex;flex-direction:column;gap:.35rem}
+  .search-result{padding:.6rem .8rem;background:var(--bg-primary);border-radius:6px;
+    border:1px solid var(--border-color);cursor:pointer;font-size:.85rem;
+    display:flex;justify-content:space-between;gap:.6rem;align-items:center}
+  .search-result:hover{background:#25324a;border-color:var(--accent-hover)}
+  .search-result .partido{color:var(--text-muted);font-size:.75rem}
+  .status-msg{font-size:.8rem;color:var(--accent-hover);margin-top:.6rem;min-height:1.2rem}
+  .leaflet-tooltip-custom{background:var(--bg-card);border:1px solid var(--border-color);
+    color:var(--text-main);font-family:'Inter',sans-serif;font-weight:600;
+    border-radius:6px;padding:6px 12px;box-shadow:0 4px 6px -1px rgba(0,0,0,.4)}
+  /* Rótulo numérico sobre cada município */
+  .municipio-votos-label{background:transparent;border:0;pointer-events:none}
+  .municipio-votos-label .pill{
+    display:inline-block;
+    background:rgba(30,27,75,0.88);
+    color:#ffffff;
+    padding:2px 5px;
+    border-radius:4px;
+    font-family:'Inter',sans-serif;
+    font-size:10px;
+    font-weight:900;
+    line-height:1;
+    letter-spacing:-0.2px;
+    border:1px solid rgba(255,255,255,0.35);
+    box-shadow:0 1px 3px rgba(0,0,0,.5);
+    white-space:nowrap;
+  }
+  .municipio-votos-label .pill.zero{
+    background:rgba(148,163,184,0.65);
+    color:#1e293b;
+    border-color:rgba(255,255,255,0.5);
+    font-weight:700;
+  }
+  .municipio-votos-label .pill.small{font-size:9px;padding:1px 4px}
+  @media (max-width:900px){
+    body{display:block;overflow-y:auto;height:auto;min-height:100dvh}
+    header{position:sticky;top:0;z-index:1500}
+    .main-container{flex-direction:column;padding:.8rem 0}
+    #map{width:calc(100% - 1.5rem);max-width:900px;height:55dvh;min-height:340px;
+      margin:0 auto;border-radius:12px;border:1px solid var(--border-color);overflow:hidden}
+    .sidebar{width:calc(100% - 1.5rem);max-width:900px;margin:.8rem auto 0;
+      border-radius:12px;border:1px solid var(--border-color)}
+  }
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <p style="color:var(--text-main);font-weight:500">Carregando mapa e candidatos...</p>
+</div>
+
+<header>
+  <div class="header-title">
+    <h1>🗳️ Pernambuco — Votação por Município</h1>
+    <p id="subtituloCandidato">Nenhum candidato selecionado</p>
+  </div>
+  <div class="search-box">
+    <input type="text" id="searchInput" placeholder="Buscar município no mapa..." list="municipiosList">
+    <datalist id="municipiosList"></datalist>
+  </div>
+</header>
+
+<div class="main-container">
+  <div id="map"></div>
+
+  <div class="sidebar">
+    <div class="select-wrap">
+      <label>Cargo</label>
+      <div class="cargo-tabs" id="cargoTabs"></div>
+    </div>
+
+    <div class="select-wrap">
+      <label>Candidato</label>
+      <select id="candidatoSelect">
+        <option value="">— Carregando —</option>
+      </select>
+    </div>
+
+    <button class="btn" id="btnNovo">➕ Buscar novo candidato</button>
+
+    <div class="select-wrap">
+      <label style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;margin-bottom:0;">
+        <span>Rótulos numéricos no mapa</span>
+        <input type="checkbox" id="toggleLabels" checked
+               style="width:18px;height:18px;accent-color:var(--accent-hover);cursor:pointer;">
+      </label>
+    </div>
+
+    <div class="stat-card">
+      <h3>Total de votos em PE</h3>
+      <div class="number" id="totalVotos">0</div>
+      <div class="sub" id="totalMunicipios">0 municípios com votos</div>
+    </div>
+
+    <div class="stat-card">
+      <h3>Top 5 municípios</h3>
+      <div class="top-list" id="topMunicipios"></div>
+    </div>
+
+    <div class="stat-card">
+      <h3>Legenda de intensidade</h3>
+      <div class="legend-box" id="legendaCores"></div>
+    </div>
+
+    <div class="stat-card">
+      <h3>Como usar</h3>
+      <div class="sub">
+        Escolha o cargo, depois o candidato. Passe o mouse sobre um município
+        para destacá-lo, clique para ver os detalhes.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de município -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal-card">
+    <button class="modal-close" onclick="fecharModal()">×</button>
+    <div class="modal-header">
+      <h2 id="modalNome">Município</h2>
+      <div class="sub" id="modalCod">—</div>
+    </div>
+    <div class="modal-grid">
+      <div class="info-group">
+        <label>Região de Desenvolvimento</label>
+        <div class="value" id="modalRD">—</div>
+      </div>
+      <div class="info-group">
+        <label>Porte populacional</label>
+        <div class="value" id="modalPorte">—</div>
+      </div>
+      <div class="info-group" style="grid-column:1/-1">
+        <label>Votos do candidato neste município</label>
+        <div class="value big" id="modalVotos">0</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de busca de novo candidato -->
+<div class="modal-overlay" id="modalBusca">
+  <div class="modal-card">
+    <button class="modal-close" onclick="fecharBusca()">×</button>
+    <div class="modal-header">
+      <h2>Buscar novo candidato</h2>
+      <div class="sub" id="buscaSubtitulo">Cargo: Deputado Estadual</div>
+    </div>
+    <input class="search-modal-input" id="buscaInput" placeholder="Ex: Dani, Luciano, 20120...">
+    <div class="search-results" id="buscaResultados"></div>
+    <div class="status-msg" id="buscaStatus"></div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ---------- Informações fixas (RD e porte) ----------
+const sheetData = {
+  "abreu e lima":{"rd":"RD 12 - Região Metropolitana","porte":"Médio Porte"},
+  "afogados da ingazeira":{"rd":"RD 05 - Sertão do Pajeú","porte":"Pequeno Porte II"},
+  "afranio":{"rd":"RD 02 - Sertão do São Francisco","porte":"Pequeno Porte I"},
+  "agrestina":{"rd":"RD 08 - Agreste Central","porte":"Pequeno Porte II"},
+  "agua preta":{"rd":"RD 10 - Mata Sul","porte":"Pequeno Porte II"},
+  "aguas belas":{"rd":"RD 07 - Agreste Meridional","porte":"Pequeno Porte II"},
+  "alagoinha":{"rd":"RD 08 - Agreste Central","porte":"Pequeno Porte I"},
+  "alianca":{"rd":"RD 11 - Mata Norte","porte":"Pequeno Porte II"},
+  "altinho":{"rd":"RD 08 - Agreste Central","porte":"Pequeno Porte II"},
+  "amaraji":{"rd":"RD 10 - Mata Sul","porte":"Pequeno Porte I"},
+  "angelim":{"rd":"RD 07 - Agreste Meridional","porte":"Pequeno Porte I"},
+  "aracoiaba":{"rd":"RD 12 - Região Metropolitana","porte":"Pequeno Porte I"},
+  "araripina":{"rd":"RD 03 - Sertão do Araripe","porte":"Médio Porte"},
+  "arcoverde":{"rd":"RD 06 - Sertão do Moxotó","porte":"Médio Porte"},
+  "barra de guabiraba":{"rd":"RD 08 - Agreste Central","porte":"Pequeno Porte I"},
+  "barreiros":{"rd":"RD 10 - Mata Sul","porte":"Pequeno Porte II"},
+  "belem de maria":{"rd":"RD 10 - Mata Sul","porte":"Pequeno Porte I"},
+  "belem do sao francisco":{"rd":"RD 01 - Sertão de Itaparica","porte":"Pequeno Porte I"},
+  "belo jardim":{"rd":"RD 08 - Agreste Central","porte":"Médio Porte"},
+  "betania":{"rd":"RD 06 - Sertão do Moxotó","porte":"Pequeno Porte I"},
+  "bezerros":{"rd":"RD 08 - Agreste Central","porte":"Médio Porte"},
+  "bodoco":{"rd":"RD 03 - Sertão do Araripe","porte":"Pequeno Porte II"},
+  "bom conselho":{"rd":"RD 07 - Agreste Meridional","porte":"Pequeno Porte II"},
+  "bom jardim":{"rd":"RD 09 - Agreste Setentrional","porte":"Pequeno Porte II"},
+  "bonito":{"rd":"RD 08 - Agreste Central","porte":"Pequeno Porte II"},
+  "brejao":{"rd":"RD 07 - Agreste Meridional","porte":"Pequeno Porte I"},
+  "brejinho":{"rd":"RD 05 - Sertão do Pajeú","porte":"Pequeno Porte I"},
+  "brejo da madre de deus":{"rd":"RD 08 - Agreste Central","porte":"Pequeno Porte II"},
+  "buenos aires":{"rd":"RD 11 - Mata Norte","porte":"Pequeno Porte I"},
+  "buique":{"rd":"RD 07 - Agreste Meridional","porte":"Médio Porte"},
+  "cabo de santo agostinho":{"rd":"RD 12 - Região Metropolitana","porte":"Grande Porte"},
+  "cabrobo":{"rd":"RD 02 - Sertão do São Francisco","porte":"Pequeno Porte II"},
+  "cachoeirinha":{"rd":"RD 08 - Agreste Central","porte":"Pequeno Porte I"},
+  "caetes":{"rd":"RD 07 - Agreste Meridional","porte":"Pequeno Porte II"},
+  "calcado":{"rd":"RD 07 - Agreste Meridional","porte":"Pequeno Porte I"},
+  "calumbi":{"rd":"RD 05 - Sertão do Pajeú","porte":"Pequeno Porte I"},
+  "camaragibe":{"rd":"RD 12 - Região Metropolitana","porte":"Grande Porte"},
+  "camocim de sao felix":{"rd":"RD 08 - Agreste Central","porte":"Pequeno Porte I"},
+  "camutanga":{"rd":"RD 11 - Mata Norte","porte":"Pequeno Porte I"},
+  "canhotinho":{"rd":"RD 07 - Agreste Meridional","porte":"Pequeno Porte II"},
+  "capoeiras":{"rd":"RD 07 - Agreste Meridional","porte":"Pequeno Porte I"},
+  "carnaiba":{"rd":"RD 05 - Sertão do Pajeú","porte":"Pequeno Porte I"},
+  "carnaubeira da penha":{"rd":"RD 01 - Sertão de Itaparica","porte":"Pequeno Porte I"},
+  "carpina":{"rd":"RD 11 - Mata Norte","porte":"Médio Porte"},
+  "caruaru":{"rd":"RD 08 - Agreste Central","porte":"Grande Porte"},
+  "casinhas":{"rd":"RD 09 - Agreste Setentrional","porte":"Pequeno Porte I"},
+  "catende":{"rd":"RD 10 - Mata Sul","porte":"Pequeno Porte II"},
+  "cedro":{"rd":"RD 04 - Sertão Central","porte":"Pequeno Porte I"},
+  "cha de alegria":{"rd":"RD 11 - Mata Norte","porte":"Pequeno Porte I"},
+  "cha grande":{"rd":"RD 10 - Mata Sul","porte":"Pequeno Porte II"},
+  "condado":{"rd":"RD 11 - Mata Norte","porte":"Pequeno Porte II"},
+  "correntes":{"rd":"RD 07 - Agreste Meridional","porte":"Pequeno Porte I"},
+  "cortes":{"rd":"RD 10 - Mata Sul","porte":"Pequeno Porte I"},
+  "cumaru":{"rd":"RD 09 - Agreste Setentrional","porte":"Pequeno Porte I"},
+  "cupira":{"rd":"RD 08 - Agreste Central","porte":"Pequeno Porte II"},
+  "custodia":{"rd":"RD 06 - Sertão do Moxotó","porte":"Pequeno Porte II"},
+  "dormentes":{"rd":"RD 02 - Sertão do São Francisco","porte":"Pequeno Porte I"},
+  "escada":{"rd":"RD 10 - Mata Sul","porte":"Médio Porte"},
+  "exu":{"rd":"RD 03 - Sertão do Araripe","porte":"Pequeno Porte II"},
+  "feira nova":{"rd":"RD 09 - Agreste Setentrional","porte":"Pequeno Porte II"},
+  "fernando de noronha":{"rd":"RD 12 - Região Metropolitana","porte":"Pequeno Porte I"},
+  "ferreiros":{"rd":"RD 11 - Mata Norte","porte":"Pequeno Porte I"},
+  "flores":{"rd":"RD 05 - Sertão do Pajeú","porte":"Pequeno Porte II"},
+  "floresta":{"rd":"RD 01 - Sertão de Itaparica","porte":"Pequeno Porte II"},
+  "frei miguelinho":{"rd":"RD 09 - Agreste Setentrional","porte":"Pequeno Porte I"},
+  "gameleira":{"rd":"RD 10 - Mata Sul","porte":"Pequeno Porte I"},
+  "garanhuns":{"rd":"RD 07 - Agreste Meridional","porte":"Grande Porte"},
+  "gloria do goita":{"rd":"RD 11 - Mata Norte","porte":"Pequeno Porte II"},
+  "goiana":{"rd":"RD 11 - Mata Norte","porte":"Médio Porte"},
+  "granito":{"rd":"RD 03 - Sertão do Araripe","porte":"Pequeno Porte I"},
+  "gravata":{"rd":"RD 08 - Agreste Central","porte":"Médio Porte"},
+  "iati":{"rd":"RD 07 - Agreste Meridional","porte":"Pequeno Porte I"},
+  "ibimirim":{"rd":"RD 06 - Sertão do Moxotó","porte":"Pequeno Porte II"},
+  "ibirajuba":{"rd":"RD 08 - Agreste Central","porte":"Pequeno Porte I"},
+  "igarassu":{"rd":"RD 12 - Região Metropolitana","porte":"Grande Porte"},
+  "iguaracy":{"rd":"RD 05 - Sertão do Pajeú","porte":"Pequeno Porte I"},
+  "ilha de itamaraca":{"rd":"RD 12 - Região Metropolitana","porte":"Pequeno Porte II"},
+  "inaja":{"rd":"RD 06 - Sertão do Moxotó","porte":"Pequeno Porte II"},
+  "ingazeira":{"rd":"RD 05 - Sertão do Pajeú","porte":"Pequeno Porte I"},
+  "ipojuca":{"rd":"RD 12 - Região Metropolitana","porte":"Médio Porte"},
+  "ipubi":{"rd":"RD 03 - Sertão do Araripe","porte":"Pequeno Porte II"},
+  "itacuruba":{"rd":"RD 01 - Sertão de Itaparica","porte":"Pequeno Porte I"},
+  "itaiba":{"rd":"RD 07 - Agreste Meridional","porte":"Pequeno Porte II"},
+  "itambe":{"rd":"RD 11 - Mata Norte","porte":"Pequeno Porte II"},
+  "itapetim":{"rd":"RD 05 - Sertão do Pajeú","porte":"Pequeno Porte I"},
+  "itapissuma":{"rd":"RD 12 - Região Metropolitana","porte":"Pequeno Porte II"},
+  "itaquitinga":{"rd":"RD 11 - Mata Norte","porte":"Pequeno Porte I"},
+  "jaboatao dos guararapes":{"rd":"RD 12 - Região Metropolitana","porte":"Grande Porte"},
+  "jaqueira":{"rd":"RD 10 - Mata Sul","porte":"Pequeno Porte I"},
+  "jatauba":{"rd":"RD 08 - Agreste Central","porte":"Pequeno Porte I"},
+  "jatoba":{"rd":"RD 01 - Sertão de Itaparica","porte":"Pequeno Porte I"},
+  "joao alfredo":{"rd":"RD 09 - Agreste Setentrional","porte":"Pequeno Porte II"},
+  "joaquim nabuco":{"rd":"RD 10 - Mata Sul","porte":"Pequeno Porte I"},
+  "jucati":{"rd":"RD 07 - Agreste Meridional","porte":"Pequeno Porte I"},
+  "jupi":{"rd":"RD 07 - Agreste Meridional","porte":"Pequeno Porte I"},
+  "jurema":{"rd":"RD 07 - Agreste Meridional","porte":"Pequeno Porte I"},
+  "lagoa de itaenga":{"rd":"RD 11 - Mata Norte","porte":"Pequeno Porte I"},
+  "lagoa do carro":{"rd":"RD 11 - Mata Norte","porte":"Pequeno Porte I"},
+  "lagoa do ouro":{"rd":"RD 07 - Agreste Meridional","porte":"Pequeno Porte I"},
+  "lagoa dos gatos":{"rd":"RD 08 - Agreste Central","porte":"Pequeno Porte I"},
+  "lagoa grande":{"rd":"RD 02 - Sertão do São Francisco","porte":"Pequeno Porte II"},
+  "lajedo":{"rd":"RD 07 - Agreste Meridional","porte":"Pequeno Porte II"},
+  "limoeiro":{"rd":"RD 09 - Agreste Setentrional","porte":"Médio Porte"},
+  "macaparana":{"rd":"RD 11 - Mata Norte","porte":"Pequeno Porte II"},
+  "machados":{"rd":"RD 09 - Agreste Setentrional","porte":"Pequeno Porte I"},
+  "manari":{"rd":"RD 06 - Sertão do Moxotó","porte":"Pequeno Porte II"},
+  "maraial":{"rd":"RD 10 - Mata Sul","porte":"Pequeno Porte I"},
+  "mirandiba":{"rd":"RD 04 - Sertão Central","porte":"Pequeno Porte I"},
+  "moreilandia":{"rd":"RD 03 - Sertão do Araripe","porte":"Pequeno Porte I"},
+  "moreno":{"rd":"RD 12 - Região Metropolitana","porte":"Médio Porte"},
+  "nazare da mata":{"rd":"RD 11 - Mata Norte","porte":"Pequeno Porte II"},
+  "olinda":{"rd":"RD 12 - Região Metropolitana","porte":"Grande Porte"},
+  "orobo":{"rd":"RD 09 - Agreste Setentrional","porte":"Pequeno Porte II"},
+  "oroco":{"rd":"RD 02 - Sertão do São Francisco","porte":"Pequeno Porte I"},
+  "ouricuri":{"rd":"RD 03 - Sertão do Araripe","porte":"Médio Porte"},
+  "palmares":{"rd":"RD 10 - Mata Sul","porte":"Médio Porte"},
+  "palmeirina":{"rd":"RD 07 - Agreste Meridional","porte":"Pequeno Porte I"},
+  "panelas":{"rd":"RD 08 - Agreste Central","porte":"Pequeno Porte II"},
+  "paranatama":{"rd":"RD 07 - Agreste Meridional","porte":"Pequeno Porte I"},
+  "parnamirim":{"rd":"RD 04 - Sertão Central","porte":"Pequeno Porte I"},
+  "passira":{"rd":"RD 09 - Agreste Setentrional","porte":"Pequeno Porte II"},
+  "paudalho":{"rd":"RD 11 - Mata Norte","porte":"Médio Porte"},
+  "paulista":{"rd":"RD 12 - Região Metropolitana","porte":"Grande Porte"},
+  "pedra":{"rd":"RD 07 - Agreste Meridional","porte":"Pequeno Porte II"},
+  "pesqueira":{"rd":"RD 08 - Agreste Central","porte":"Médio Porte"},
+  "petrolandia":{"rd":"RD 01 - Sertão de Itaparica","porte":"Pequeno Porte II"},
+  "petrolina":{"rd":"RD 02 - Sertão do São Francisco","porte":"Grande Porte"},
+  "pocao":{"rd":"RD 08 - Agreste Central","porte":"Pequeno Porte I"},
+  "pombos":{"rd":"RD 08 - Agreste Central","porte":"Pequeno Porte II"},
+  "primavera":{"rd":"RD 10 - Mata Sul","porte":"Pequeno Porte I"},
+  "quipapa":{"rd":"RD 10 - Mata Sul","porte":"Pequeno Porte I"},
+  "quixaba":{"rd":"RD 05 - Sertão do Pajeú","porte":"Pequeno Porte I"},
+  "recife":{"rd":"RD 12 - Região Metropolitana","porte":"Metrópole"},
+  "riacho das almas":{"rd":"RD 08 - Agreste Central","porte":"Pequeno Porte II"},
+  "ribeirao":{"rd":"RD 10 - Mata Sul","porte":"Pequeno Porte II"},
+  "rio formoso":{"rd":"RD 10 - Mata Sul","porte":"Pequeno Porte II"},
+  "saire":{"rd":"RD 08 - Agreste Central","porte":"Pequeno Porte I"},
+  "salgadinho":{"rd":"RD 09 - Agreste Setentrional","porte":"Pequeno Porte I"},
+  "salgueiro":{"rd":"RD 04 - Sertão Central","porte":"Médio Porte"},
+  "saloa":{"rd":"RD 07 - Agreste Meridional","porte":"Pequeno Porte I"},
+  "sanharo":{"rd":"RD 08 - Agreste Central","porte":"Pequeno Porte I"},
+  "santa cruz":{"rd":"RD 03 - Sertão do Araripe","porte":"Pequeno Porte I"},
+  "santa cruz da baixa verde":{"rd":"RD 05 - Sertão do Pajeú","porte":"Pequeno Porte I"},
+  "santa cruz do capibaribe":{"rd":"RD 09 - Agreste Setentrional","porte":"Médio Porte"},
+  "santa filomena":{"rd":"RD 03 - Sertão do Araripe","porte":"Pequeno Porte I"},
+  "santa maria da boa vista":{"rd":"RD 02 - Sertão do São Francisco","porte":"Pequeno Porte II"},
+  "santa maria do cambuca":{"rd":"RD 09 - Agreste Setentrional","porte":"Pequeno Porte I"},
+  "santa terezinha":{"rd":"RD 05 - Sertão do Pajeú","porte":"Pequeno Porte I"},
+  "sao benedito do sul":{"rd":"RD 10 - Mata Sul","porte":"Pequeno Porte I"},
+  "sao bento do una":{"rd":"RD 08 - Agreste Central","porte":"Pequeno Porte II"},
+  "sao caetano":{"rd":"RD 08 - Agreste Central","porte":"Pequeno Porte II"},
+  "sao joao":{"rd":"RD 07 - Agreste Meridional","porte":"Pequeno Porte II"},
+  "sao joaquim do monte":{"rd":"RD 08 - Agreste Central","porte":"Pequeno Porte II"},
+  "sao jose da coroa grande":{"rd":"RD 10 - Mata Sul","porte":"Pequeno Porte I"},
+  "sao jose do belmonte":{"rd":"RD 04 - Sertão Central","porte":"Pequeno Porte II"},
+  "sao jose do egito":{"rd":"RD 05 - Sertão do Pajeú","porte":"Pequeno Porte II"},
+  "sao lourenco da mata":{"rd":"RD 12 - Região Metropolitana","porte":"Grande Porte"},
+  "sao vicente ferrer":{"rd":"RD 09 - Agreste Setentrional","porte":"Pequeno Porte I"},
+  "serra talhada":{"rd":"RD 05 - Sertão do Pajeú","porte":"Médio Porte"},
+  "serrita":{"rd":"RD 04 - Sertão Central","porte":"Pequeno Porte I"},
+  "sertania":{"rd":"RD 06 - Sertão do Moxotó","porte":"Pequeno Porte II"},
+  "sirinhaem":{"rd":"RD 10 - Mata Sul","porte":"Pequeno Porte II"},
+  "solidao":{"rd":"RD 05 - Sertão do Pajeú","porte":"Pequeno Porte I"},
+  "surubim":{"rd":"RD 09 - Agreste Setentrional","porte":"Médio Porte"},
+  "tabira":{"rd":"RD 05 - Sertão do Pajeú","porte":"Pequeno Porte II"},
+  "tacaimbo":{"rd":"RD 08 - Agreste Central","porte":"Pequeno Porte I"},
+  "tacaratu":{"rd":"RD 01 - Sertão de Itaparica","porte":"Pequeno Porte II"},
+  "tamandare":{"rd":"RD 10 - Mata Sul","porte":"Pequeno Porte II"},
+  "taquaritinga do norte":{"rd":"RD 09 - Agreste Setentrional","porte":"Pequeno Porte II"},
+  "terezinha":{"rd":"RD 07 - Agreste Meridional","porte":"Pequeno Porte I"},
+  "terra nova":{"rd":"RD 04 - Sertão Central","porte":"Pequeno Porte I"},
+  "timbauba":{"rd":"RD 11 - Mata Norte","porte":"Pequeno Porte II"},
+  "toritama":{"rd":"RD 09 - Agreste Setentrional","porte":"Pequeno Porte II"},
+  "tracunhaem":{"rd":"RD 11 - Mata Norte","porte":"Pequeno Porte I"},
+  "trindade":{"rd":"RD 03 - Sertão do Araripe","porte":"Pequeno Porte II"},
+  "triunfo":{"rd":"RD 05 - Sertão do Pajeú","porte":"Pequeno Porte I"},
+  "tupanatinga":{"rd":"RD 07 - Agreste Meridional","porte":"Pequeno Porte II"},
+  "tuparetama":{"rd":"RD 05 - Sertão do Pajeú","porte":"Pequeno Porte I"},
+  "venturosa":{"rd":"RD 07 - Agreste Meridional","porte":"Pequeno Porte I"},
+  "verdejante":{"rd":"RD 04 - Sertão Central","porte":"Pequeno Porte I"},
+  "vertente do lerio":{"rd":"RD 09 - Agreste Setentrional","porte":"Pequeno Porte I"},
+  "vertentes":{"rd":"RD 09 - Agreste Setentrional","porte":"Pequeno Porte II"},
+  "vicencia":{"rd":"RD 11 - Mata Norte","porte":"Pequeno Porte II"},
+  "vitoria de santo antao":{"rd":"RD 10 - Mata Sul","porte":"Grande Porte"},
+  "xexeu":{"rd":"RD 10 - Mata Sul","porte":"Pequeno Porte I"}
+};
+
+// ---------- Estado global ----------
+let map, geojsonLayer;
+let layerMap = {};
+let votosAtuais = {};
+let candidatoAtual = null;
+let cargoAtual = "ESTADUAL";
+let cargosDisponiveis = [];
+let escala = { thresholds: [], colors: [] };
+let selectedLayer = null;
+let labelsVisiveis = true;
+
+// ---------- Paleta azul → roxo ----------
+const COLOR_ZERO    = '#e8e8ee';
+const COLOR_PALETTE = ['#dbeafe', '#a5b4fc', '#818cf8', '#6366f1', '#4c1d95'];
+
+function normalizeStr(s){
+  if(!s) return '';
+  return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,'').trim();
+}
+const aliases = {
+  "lagoa do itaenga":"lagoa de itaenga",
+  "belem de sao francisco":"belem do sao francisco",
+  "sao caitano":"sao caetano",
+  "iguaraci":"iguaracy"
+};
+function canonicalKey(name){
+  const n = normalizeStr(name);
+  return aliases[n] || n;
+}
+
+function quantile(arr,p){
+  if(arr.length===0) return 0;
+  const idx=(arr.length-1)*p;
+  const lo=Math.floor(idx), hi=Math.ceil(idx);
+  return arr[lo]+(arr[hi]-arr[lo])*(idx-lo);
+}
+
+function calcularEscala(votos){
+  const naoZero = Object.values(votos).filter(v=>v>0).sort((a,b)=>a-b);
+  if(naoZero.length===0){
+    escala = { thresholds:[], colors:[COLOR_PALETTE[0]] };
+    return;
+  }
+  const q = [0.2,0.4,0.6,0.8].map(p=>quantile(naoZero,p));
+  escala = { thresholds:q, colors: COLOR_PALETTE };
+}
+
+function corParaVotos(v){
+  if(!v || v<=0) return COLOR_ZERO;
+  for(let i=escala.thresholds.length-1;i>=0;i--){
+    if(v > escala.thresholds[i]) return escala.colors[i];
+  }
+  return escala.colors[0];
+}
+
+// ---------- Mapa ----------
+function initMap(){
+  map = L.map('map',{zoomControl:true,attributionControl:false}).setView([-8.38,-37.86],8);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
+    maxZoom:18,minZoom:6
+  }).addTo(map);
+}
+
+async function fetchGeoJson(){
+  const urls=[
+    'https://cdn.jsdelivr.net/gh/tbrugz/geodata-br@master/geojson/geojs-26-mun.json',
+    'https://raw.githubusercontent.com/tbrugz/geodata-br/master/geojson/geojs-26-mun.json',
+    'https://servicodados.ibge.gov.br/api/v3/malhas/estados/26?formato=application/vnd.geo+json&qualidade=intermediaria&estrutura=municipio'
+  ];
+  for(const url of urls){
+    try{
+      const r = await fetch(url);
+      if(!r.ok) continue;
+      const d = await r.json();
+      if(d && d.features && d.features.length>50) return d;
+    }catch(e){console.warn('falhou',url);}
+  }
+  throw new Error('Não foi possível carregar a malha de municípios.');
+}
+
+function infoMunicipio(feature){
+  const props = feature.properties||{};
+  const cod = String(props.id||props.codarea||props.CD_MUN||feature.id||'');
+  const nomeBruto = props.name||props.nome||props.NM_MUN||props.NM_MUNICIP||'';
+  const key = canonicalKey(nomeBruto);
+  const meta = sheetData[key] || { rd:'—', porte:'—' };
+  return {
+    id: cod,
+    nome: nomeBruto.replace(/\b\w/g,l=>l.toUpperCase()),
+    key: key,
+    rd: meta.rd,
+    porte: meta.porte,
+    votos: votosAtuais[key] || 0
+  };
+}
+
+function styleFromInfo(info){
+  return {
+    fillColor: corParaVotos(info.votos),
+    weight: 1.1, opacity: 1, color: '#0f172a', fillOpacity: 0.9
+  };
+}
+
+function tooltipHtml(info){
+  return `<b>${info.nome}</b><br>
+          <small>${info.rd}</small><br>
+          <small><b>Votos: ${info.votos.toLocaleString('pt-BR')}</b></small>`;
+}
+
+function iconVotos(v){
+  let txt, cssClass = 'pill';
+  if(!v || v <= 0){
+    txt = '·';
+    cssClass += ' zero';
+  } else if(v >= 1000){
+    txt = (v/1000).toFixed(1).replace('.', ',') + 'k';
+  } else {
+    txt = String(v);
+    if(v < 10) cssClass += ' small';
+  }
+  return L.divIcon({
+    className: 'municipio-votos-label',
+    html: `<span class="${cssClass}">${txt}</span>`,
+    iconSize: [44, 18],
+    iconAnchor: [22, 9]
+  });
+}
+
+function renderGeoJson(geo){
+  if(geojsonLayer) map.removeLayer(geojsonLayer);
+  layerMap = {};
+  const labelsPendentes = [];
+
+  geojsonLayer = L.geoJSON(geo,{
+    style: f => styleFromInfo(infoMunicipio(f)),
+    onEachFeature:(feature,layer)=>{
+      const info = infoMunicipio(feature);
+      layerMap[info.key] = { layer, info, labelMarker:null };
+
+      layer.bindTooltip(tooltipHtml(info),{
+        className:'leaflet-tooltip-custom',direction:'top',sticky:true
+      });
+      layer.on({
+        mouseover:e=>{
+          if(layer!==selectedLayer){
+            e.target.setStyle({fillColor:'#a5b4fc',weight:2.4,color:'#fff',fillOpacity:.95});
+            e.target.bringToFront();
+          }
+        },
+        mouseout:e=>{ if(layer!==selectedLayer) e.target.setStyle(styleFromInfo(info)); },
+        click:()=>selectMunicipio(layer,info)
+      });
+      labelsPendentes.push(info.key);
+    }
+  }).addTo(map);
+
+  // Cria os marcadores de rótulo após o layer entrar no mapa
+  labelsPendentes.forEach(key=>{
+    const item = layerMap[key];
+    if(!item) return;
+    try{
+      const center = item.layer.getBounds().getCenter();
+      item.labelMarker = L.marker(center, {
+        interactive:false, keyboard:false, icon: iconVotos(0)
+      });
+      if(labelsVisiveis) item.labelMarker.addTo(map);
+    }catch(e){
+      try{
+        const latlngs = item.layer.getLatLngs();
+        const flat = Array.isArray(latlngs) ? latlngs.flat(2).find(x=>x&&x.lat!==undefined) : null;
+        if(flat){
+          item.labelMarker = L.marker(flat, {
+            interactive:false, keyboard:false, icon: iconVotos(0)
+          });
+          if(labelsVisiveis) item.labelMarker.addTo(map);
+        }
+      }catch(_){}
+    }
+  });
+
+  if(geojsonLayer.getBounds().isValid()){
+    map.fitBounds(geojsonLayer.getBounds(),{padding:[20,20]});
+  }
+  const dl = document.getElementById('municipiosList');
+  dl.innerHTML = '';
+  Object.values(layerMap).forEach(item=>{
+    const opt = document.createElement('option');
+    opt.value = item.info.nome;
+    dl.appendChild(opt);
+  });
+}
+
+function atualizarCores(){
+  Object.values(layerMap).forEach(item=>{
+    item.info.votos = votosAtuais[item.info.key] || 0;
+    item.layer.setStyle(styleFromInfo(item.info));
+    item.layer.setTooltipContent(tooltipHtml(item.info));
+
+    if(item.labelMarker){
+      item.labelMarker.setIcon(iconVotos(item.info.votos));
+      if(labelsVisiveis){
+        if(!map.hasLayer(item.labelMarker)) item.labelMarker.addTo(map);
+      } else {
+        if(map.hasLayer(item.labelMarker)) map.removeLayer(item.labelMarker);
+      }
+    }
+  });
+  if(selectedLayer){
+    selectedLayer.setStyle({fillColor:'#f59e0b',weight:3,color:'#fff',fillOpacity:1});
+    selectedLayer.bringToFront();
+  }
+}
+
+function selectMunicipio(layer,info){
+  if(selectedLayer){
+    const k = canonicalKey(selectedLayer.feature.properties.name||'');
+    const it = layerMap[k];
+    if(it) selectedLayer.setStyle(styleFromInfo(it.info));
+  }
+  selectedLayer = layer;
+  layer.setStyle({fillColor:'#f59e0b',weight:3,color:'#fff',fillOpacity:1});
+  layer.bringToFront();
+  abrirModal(info);
+}
+
+function abrirModal(info){
+  document.getElementById('modalNome').innerText = info.nome;
+  document.getElementById('modalCod').innerText = info.id ? `Código IBGE: ${info.id}` : '—';
+  document.getElementById('modalRD').innerText = info.rd;
+  document.getElementById('modalPorte').innerText = info.porte;
+  document.getElementById('modalVotos').innerText = info.votos.toLocaleString('pt-BR');
+  document.getElementById('modalOverlay').style.display='flex';
+}
+function fecharModal(){
+  document.getElementById('modalOverlay').style.display='none';
+  if(selectedLayer){
+    const k = canonicalKey(selectedLayer.feature.properties.name||'');
+    const it = layerMap[k];
+    if(it) selectedLayer.setStyle(styleFromInfo(it.info));
+    selectedLayer = null;
+  }
+}
+document.getElementById('modalOverlay').addEventListener('click',e=>{
+  if(e.target.id==='modalOverlay') fecharModal();
+});
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') fecharModal(); });
+
+// ---------- Sidebar ----------
+function atualizarSidebar(nome,total,votos,cargoNome){
+  document.getElementById('subtituloCandidato').innerText =
+    nome ? `${cargoNome||''} ${cargoNome?':':''} ${nome}`.trim() : 'Nenhum candidato selecionado';
+  document.getElementById('totalVotos').innerText = total.toLocaleString('pt-BR');
+  const municipios = Object.entries(votos).filter(([_,v])=>v>0);
+  document.getElementById('totalMunicipios').innerText =
+    `${municipios.length} município${municipios.length===1?'':'s'} com votos`;
+  const top = municipios.sort((a,b)=>b[1]-a[1]).slice(0,5);
+  const cont = document.getElementById('topMunicipios');
+  cont.innerHTML = '';
+  if(top.length===0){
+    cont.innerHTML = '<div class="row"><span>(sem votos)</span><span>0</span></div>';
+  } else {
+    top.forEach(([m,v])=>{
+      const row = document.createElement('div');
+      row.className='row';
+      row.innerHTML = `<span title="${m}">${m}</span><span>${v.toLocaleString('pt-BR')}</span>`;
+      cont.appendChild(row);
+    });
+  }
+  const leg = document.getElementById('legendaCores');
+  leg.innerHTML = '';
+  const addLeg = (cor,label)=>{
+    const div = document.createElement('div');
+    div.className='legend-item';
+    div.innerHTML = `<div class="color-swatch" style="background:${cor}"></div><span>${label}</span>`;
+    leg.appendChild(div);
+  };
+  addLeg(COLOR_ZERO,'Sem votos');
+  const th = escala.thresholds;
+  if(th.length>0){
+    const f = n => Math.round(n).toLocaleString('pt-BR');
+    addLeg(COLOR_PALETTE[0], `1 a ${f(th[0])}`);
+    addLeg(COLOR_PALETTE[1], `${f(th[0])} a ${f(th[1])}`);
+    addLeg(COLOR_PALETTE[2], `${f(th[1])} a ${f(th[2])}`);
+    addLeg(COLOR_PALETTE[3], `${f(th[2])} a ${f(th[3])}`);
+    addLeg(COLOR_PALETTE[4], `acima de ${f(th[3])}`);
+  }
+}
+
+// ---------- Cargos ----------
+async function carregarCargos(){
+  const r = await fetch('/api/cargos');
+  cargosDisponiveis = await r.json();
+  const cont = document.getElementById('cargoTabs');
+  cont.innerHTML = '';
+  cargosDisponiveis.forEach(c=>{
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'cargo-tab' + (c.id===cargoAtual?' active':'');
+    b.textContent = c.nome.replace('Deputado ','');
+    b.title = c.nome;
+    b.dataset.cargo = c.id;
+    b.addEventListener('click', ()=>selecionarCargo(c.id));
+    cont.appendChild(b);
+  });
+}
+function atualizarTabsCargo(){
+  document.querySelectorAll('.cargo-tab').forEach(b=>{
+    b.classList.toggle('active', b.dataset.cargo===cargoAtual);
+  });
+}
+
+async function selecionarCargo(cargo){
+  if(cargo === cargoAtual) return;
+  cargoAtual = cargo;
+  atualizarTabsCargo();
+  votosAtuais = {};
+  candidatoAtual = null;
+  calcularEscala({});
+  atualizarCores();
+  atualizarSidebar('',0,{});
+  const lista = await carregarListaCandidatos();
+  if(lista.length>0){
+    document.getElementById('candidatoSelect').value = lista[0].id;
+    await carregarVotos(lista[0].id);
+  }
+}
+
+// ---------- API ----------
+async function carregarListaCandidatos(){
+  const r = await fetch('/api/candidatos?cargo='+encodeURIComponent(cargoAtual));
+  const lista = await r.json();
+  const sel = document.getElementById('candidatoSelect');
+  sel.innerHTML = '<option value="">— Selecione um candidato —</option>';
+  lista.forEach(c=>{
+    const opt = document.createElement('option');
+    opt.value = c.id;
+    opt.textContent = `${c.nome} (${c.total.toLocaleString('pt-BR')} votos)`;
+    sel.appendChild(opt);
+  });
+  return lista;
+}
+
+async function carregarVotos(candId){
+  const r = await fetch(`/api/votos/${candId}`);
+  if(!r.ok) throw new Error('Falha ao buscar votos');
+  const data = await r.json();
+  votosAtuais = {};
+  Object.entries(data.votos).forEach(([m,v])=>{
+    votosAtuais[canonicalKey(m)] = v;
+  });
+  candidatoAtual = data.candidato;
+  calcularEscala(votosAtuais);
+  atualizarCores();
+  atualizarSidebar(data.candidato, data.total, votosAtuais, data.cargo_nome || '');
+}
+
+// ---------- Busca no TSE ----------
+function abrirBusca(){
+  document.getElementById('modalBusca').style.display='flex';
+  const c = cargosDisponiveis.find(x=>x.id===cargoAtual);
+  document.getElementById('buscaSubtitulo').innerText = `Cargo: ${c ? c.nome : cargoAtual}`;
+  document.getElementById('buscaInput').focus();
+}
+function fecharBusca(){
+  document.getElementById('modalBusca').style.display='none';
+  document.getElementById('buscaResultados').innerHTML='';
+  document.getElementById('buscaStatus').innerText='';
+  document.getElementById('buscaInput').value='';
+}
+document.getElementById('modalBusca').addEventListener('click',e=>{
+  if(e.target.id==='modalBusca') fecharBusca();
+});
+
+async function buscarCandidatoNoTse(){
+  const q = document.getElementById('buscaInput').value.trim();
+  const res = document.getElementById('buscaResultados');
+  const status = document.getElementById('buscaStatus');
+  if(!q){ res.innerHTML=''; status.innerText=''; return; }
+  status.innerText = 'Buscando...';
+  try{
+    const r = await fetch(`/api/buscar?q=${encodeURIComponent(q)}&cargo=${cargoAtual}`);
+    const lista = await r.json();
+    res.innerHTML = '';
+    if(lista.length===0){ status.innerText = 'Nenhum candidato encontrado.'; return; }
+    status.innerText = `${lista.length} candidato(s) encontrado(s). Clique para importar.`;
+    lista.forEach(c=>{
+      const div = document.createElement('div');
+      div.className='search-result';
+      div.innerHTML = `<div><b>${c.nome}</b> <span class="partido">· ${c.partido} · nº ${c.numero}</span></div>
+                       <div><b>${c.votos_pe.toLocaleString('pt-BR')}</b></div>`;
+      div.onclick = ()=>importarCandidato(c.nome, c.cargo);
+      res.appendChild(div);
+    });
+  }catch(e){ status.innerText = 'Erro: '+e.message; }
+}
+document.getElementById('buscaInput').addEventListener('input',()=>{
+  clearTimeout(window._t);
+  window._t = setTimeout(buscarCandidatoNoTse,300);
+});
+
+async function importarCandidato(nome, cargo){
+  const status = document.getElementById('buscaStatus');
+  status.innerText = `Baixando votos de ${nome}... isso pode levar ~1 minuto.`;
+  document.querySelectorAll('.search-result').forEach(d=>d.style.pointerEvents='none');
+  try{
+    const r = await fetch('/api/importar',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({nome, cargo})
+    });
+    const data = await r.json();
+    if(data.erro){ status.innerText = 'Erro: '+data.erro; return; }
+    status.innerText = `✅ ${data.nome} salvo (${(data.total||0).toLocaleString('pt-BR')} votos).`;
+    await carregarListaCandidatos();
+    document.getElementById('candidatoSelect').value = data.id;
+    await carregarVotos(data.id);
+    setTimeout(fecharBusca, 900);
+  }catch(e){ status.innerText = 'Erro: '+e.message; }
+}
+document.getElementById('btnNovo').addEventListener('click',abrirBusca);
+
+// ---------- Busca por município ----------
+document.getElementById('searchInput').addEventListener('input',e=>{
+  const v = normalizeStr(e.target.value);
+  const it = layerMap[v] || Object.entries(layerMap).find(([k])=>k.startsWith(v))?.[1];
+  if(it) map.fitBounds(it.layer.getBounds(),{maxZoom:11});
+});
+
+// ---------- Toggle de rótulos ----------
+document.getElementById('toggleLabels').addEventListener('change',e=>{
+  labelsVisiveis = e.target.checked;
+  Object.values(layerMap).forEach(item=>{
+    if(!item.labelMarker) return;
+    if(labelsVisiveis){
+      if(!map.hasLayer(item.labelMarker)) item.labelMarker.addTo(map);
+    } else {
+      if(map.hasLayer(item.labelMarker)) map.removeLayer(item.labelMarker);
+    }
+  });
+});
+
+// ---------- Bootstrap ----------
+async function bootstrap(){
+  try{
+    initMap();
+    const geo = await fetchGeoJson();
+    await carregarCargos();
+    const lista = await carregarListaCandidatos();
+    renderGeoJson(geo);
+    if(lista.length>0){
+      document.getElementById('candidatoSelect').value = lista[0].id;
+      await carregarVotos(lista[0].id);
+    } else {
+      calcularEscala({});
+      atualizarCores();
+      atualizarSidebar('',0,{});
+    }
+    document.getElementById('loading').style.display='none';
+  }catch(e){
+    console.error(e);
+    alert('Erro ao carregar: '+e.message);
+    document.getElementById('loading').style.display='none';
+  }
+}
+
+document.getElementById('candidatoSelect').addEventListener('change',async e=>{
+  const id = e.target.value;
+  if(!id) return;
+  try{ await carregarVotos(id); }
+  catch(err){ alert('Erro: '+err.message); }
+});
+
+window.onload = bootstrap;
+</script>
+</body>
+</html>
