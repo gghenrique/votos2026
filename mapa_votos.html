@@ -842,26 +842,77 @@ document.getElementById('buscaInput').addEventListener('input',()=>{
 
 async function importarCandidato(nome, cargo){
   const status = document.getElementById('buscaStatus');
-  status.innerText = `Baixando votos de ${nome}... isso pode levar ~1 minuto.`;
+  status.innerText = `Iniciando download de ${nome}...`;
   document.querySelectorAll('.search-result').forEach(d=>d.style.pointerEvents='none');
+
   try{
+    // 1) Dispara o job (retorna imediatamente)
     const r = await fetch('/api/importar',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({nome, cargo})
     });
     const data = await r.json();
-    if(data.erro){ status.innerText = 'Erro: '+data.erro; return; }
-        const msgCommit = data.commit_github
-      ? ' — salvo no GitHub ✅ (redeploy em ~2 min)'
-      : ' — salvo localmente (GitHub não configurado)';
-    status.innerText = `✅ ${data.nome} (${(data.total||0).toLocaleString('pt-BR')} votos)${msgCommit}`;
-    await carregarListaCandidatos();
-    document.getElementById('candidatoSelect').value = data.id;
-    await carregarVotos(data.id);
-    setTimeout(fecharBusca, 900);
-  }catch(e){ status.innerText = 'Erro: '+e.message; }
+
+    if(data.erro){
+      status.innerText = 'Erro: '+data.erro;
+      document.querySelectorAll('.search-result').forEach(d=>d.style.pointerEvents='auto');
+      return;
+    }
+
+    // Já existia
+    if(data.ja_existia){
+      status.innerText = `✅ ${data.nome} já estava na base.`;
+      await carregarListaCandidatos();
+      document.getElementById('candidatoSelect').value = data.id;
+      await carregarVotos(data.id);
+      setTimeout(fecharBusca, 900);
+      return;
+    }
+
+    // 2) Polling do progresso
+    const jobId = data.job_id;
+    const inicio = Date.now();
+    const TIMEOUT_MS = 5 * 60 * 1000;  // 5 minutos
+
+    while(true){
+      await new Promise(res=>setTimeout(res, 2000));
+      if(Date.now() - inicio > TIMEOUT_MS){
+        status.innerText = '❌ Tempo esgotado. Tente novamente em alguns minutos.';
+        return;
+      }
+      let s;
+      try{
+        const sr = await fetch(`/api/importar/status/${jobId}`);
+        s = await sr.json();
+      }catch(_){
+        status.innerText = 'Aguardando resposta do servidor...';
+        continue;
+      }
+
+      if(s.status === 'baixando'){
+        status.innerText = `⏳ Baixando votos... ${s.progresso}/${s.total || '?'} municípios`;
+      } else if(s.status === 'commitando'){
+        status.innerText = `💾 Enviando CSV para o GitHub... (${(s.votos_total||0).toLocaleString('pt-BR')} votos)`;
+      } else if(s.status === 'ok'){
+        const g = data.github_configurado ? ' — salvo no GitHub ✅' : ' — salvo localmente';
+        status.innerText = `✅ ${s.nome} (${(s.votos_total||0).toLocaleString('pt-BR')} votos)${g}`;
+        await carregarListaCandidatos();
+        document.getElementById('candidatoSelect').value = s.candidato_id;
+        await carregarVotos(s.candidato_id);
+        setTimeout(fecharBusca, 1200);
+        return;
+      } else if(s.status === 'erro'){
+        status.innerText = '❌ Erro: ' + (s.mensagem || 'desconhecido');
+        return;
+      }
+    }
+  }catch(e){
+    status.innerText = 'Erro: '+e.message;
+    document.querySelectorAll('.search-result').forEach(d=>d.style.pointerEvents='auto');
+  }
 }
+
 document.getElementById('btnNovo').addEventListener('click',abrirBusca);
 
 // ---------- Busca por município ----------

@@ -1,7 +1,7 @@
 from flask import Flask, jsonify, send_file, request
 from flask_cors import CORS
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import os, re, json, base64, unicodedata, threading, time
+import os, re, json, base64, unicodedata, threading, time, uuid, traceback
 import pandas as pd
 import requests
 
@@ -28,23 +28,21 @@ URL_CADASTRO = (f"https://resultados.tse.jus.br/oficial/ele2026/{COD_PLEITO}/"
 
 HEADERS = {"User-Agent": "Mozilla/5.0", "Referer": "https://resultados.tse.jus.br/"}
 
-# --- Config GitHub (via env vars) ---
+# --- Config GitHub ---
 GITHUB_TOKEN  = os.environ.get("GITHUB_TOKEN")
 GITHUB_OWNER  = os.environ.get("GITHUB_OWNER")
 GITHUB_REPO   = os.environ.get("GITHUB_REPO")
 GITHUB_BRANCH = os.environ.get("GITHUB_BRANCH", "main")
-
 GITHUB_OK = bool(GITHUB_TOKEN and GITHUB_OWNER and GITHUB_REPO)
 
-def url_estado(cargo_key):
-    c = CARGOS[cargo_key]["codigo"]
-    return (f"https://resultados.tse.jus.br/oficial/ele2026/{COD_ELEICAO}/dados/"
-            f"{UF}/{UF}-c{c}-e{COD_ELEICAO_6}-u.json")
-
-def url_votos(cargo_key, cod_mun):
-    c = CARGOS[cargo_key]["codigo"]
-    return (f"https://resultados.tse.jus.br/oficial/ele2026/{COD_ELEICAO}/dados/"
-            f"{UF}/{UF}{cod_mun}-c{c}-e{COD_ELEICAO_6}-u.json")
+# --- Fila de jobs em memória ---
+# jobs[job_id] = {
+#   status: "baixando" | "commitando" | "ok" | "erro",
+#   progresso: int, total: int,
+#   nome, cargo, candidato_id, votos_total, mensagem
+# }
+JOBS = {}
+JOBS_LOCK = threading.Lock()
 
 # --- Helpers ---
 def b64url_decode(s):
@@ -81,18 +79,31 @@ def parse_id(id_str):
             return key, id_str
     return "ESTADUAL", f"ESTADUAL_{id_str}"
 
+def url_estado(cargo_key):
+    c = CARGOS[cargo_key]["codigo"]
+    return (f"https://resultados.tse.jus.br/oficial/ele2026/{COD_ELEICAO}/dados/"
+            f"{UF}/{UF}-c{c}-e{COD_ELEICAO_6}-u.json")
+
+def url_votos(cargo_key, cod_mun):
+    c = CARGOS[cargo_key]["codigo"]
+    return (f"https://resultados.tse.jus.br/oficial/ele2026/{COD_ELEICAO}/dados/"
+            f"{UF}/{UF}{cod_mun}-c{c}-e{COD_ELEICAO_6}-u.json")
+
 # --- Caches ---
 _cache = {"cadastro": None, "estado": {k: None for k in CARGOS}}
+_cache_lock = threading.Lock()
 
 def get_cadastro():
-    if _cache["cadastro"] is None:
-        _cache["cadastro"] = baixar_json(URL_CADASTRO, timeout=60)
-    return _cache["cadastro"]
+    with _cache_lock:
+        if _cache["cadastro"] is None:
+            _cache["cadastro"] = baixar_json(URL_CADASTRO, timeout=60)
+        return _cache["cadastro"]
 
 def get_estado(cargo_key):
-    if _cache["estado"][cargo_key] is None:
-        _cache["estado"][cargo_key] = baixar_json(url_estado(cargo_key), timeout=60)
-    return _cache["estado"][cargo_key]
+    with _cache_lock:
+        if _cache["estado"][cargo_key] is None:
+            _cache["estado"][cargo_key] = baixar_json(url_estado(cargo_key), timeout=60)
+        return _cache["estado"][cargo_key]
 
 def municipios_pe():
     for abr in get_cadastro().get("abr", []):
@@ -127,11 +138,6 @@ def votos_do_candidato_em(dados_municipio, nome_busca):
 
 # --- GitHub commit ---
 def git_commit_csv(caminho_local, caminho_repo, mensagem):
-    """
-    Cria ou atualiza um arquivo no GitHub via API.
-    caminho_repo: caminho relativo dentro do repo, ex: 'dados/ESTADUAL_FULANO.csv'
-    Retorna True se sucesso.
-    """
     if not GITHUB_OK:
         print("[git] Variáveis GITHUB_* não configuradas — apenas local")
         return False
@@ -146,7 +152,6 @@ def git_commit_csv(caminho_local, caminho_repo, mensagem):
         "X-GitHub-Api-Version": "2022-11-28",
     }
 
-    # Verifica se já existe para obter o SHA (obrigatório para update)
     sha = None
     try:
         r = requests.get(url, headers=headers, params={"ref": GITHUB_BRANCH}, timeout=15)
@@ -168,9 +173,8 @@ def git_commit_csv(caminho_local, caminho_repo, mensagem):
         if r.status_code in (200, 201):
             print(f"[git] ✅ Commitado: {caminho_repo}")
             return True
-        else:
-            print(f"[git] ❌ Falha ({r.status_code}): {r.text[:300]}")
-            return False
+        print(f"[git] ❌ Falha ({r.status_code}): {r.text[:300]}")
+        return False
     except Exception as e:
         print(f"[git] ❌ Exceção: {e}")
         return False
@@ -188,6 +192,7 @@ def status():
         "repo": GITHUB_REPO,
         "branch": GITHUB_BRANCH,
         "candidatos_locais": len([f for f in os.listdir(PASTA_DADOS) if f.endswith(".csv")]),
+        "jobs_ativos": sum(1 for j in JOBS.values() if j.get("status") not in ("ok","erro")),
     })
 
 @app.route("/api/cargos")
@@ -253,9 +258,7 @@ def obter_votos(cand_id):
 def buscar():
     q = request.args.get("q", "").strip().lower()
     cargo_key = request.args.get("cargo", "ESTADUAL").upper()
-    if cargo_key not in CARGOS:
-        return jsonify([])
-    if not q:
+    if cargo_key not in CARGOS or not q:
         return jsonify([])
     cands = candidatos_pe(cargo_key)
     if q.isdigit():
@@ -266,6 +269,66 @@ def buscar():
         c["cargo"] = cargo_key
         c["cargo_nome"] = CARGOS[cargo_key]["nome"]
     return jsonify(found[:30])
+
+# --- Importação assíncrona ---
+
+def _processar_importacao(job_id, nome, cargo_key, cand_id, caminho_saida, caminho_repo):
+    try:
+        municipios = municipios_pe()
+        total_mun = len(municipios)
+
+        with JOBS_LOCK:
+            JOBS[job_id]["total"] = total_mun
+
+        def baixar_um(mun):
+            cod_mun = mun["cd"]
+            nome_mun = mun["nm"]
+            url = url_votos(cargo_key, cod_mun)
+            try:
+                dados = baixar_json(url, timeout=15)
+                votos = votos_do_candidato_em(dados, nome)
+                return (nome_mun.upper(), votos)
+            except Exception:
+                return (nome_mun.upper(), 0)
+
+        resultados = []
+        with ThreadPoolExecutor(max_workers=10) as ex:
+            futuros = [ex.submit(baixar_um, m) for m in municipios]
+            for i, f in enumerate(as_completed(futuros), 1):
+                resultados.append(f.result())
+                with JOBS_LOCK:
+                    JOBS[job_id]["progresso"] = i
+
+        resultados.sort(key=lambda x: x[0])
+        total = sum(v for _, v in resultados)
+        registros = [{"municipio": m, nome: v} for m, v in resultados]
+        registros.append({"municipio": "TOTAL", nome: total})
+
+        df = pd.DataFrame(registros)
+        df.to_csv(caminho_saida, index=False, encoding="utf-8-sig")
+
+        with JOBS_LOCK:
+            JOBS[job_id]["status"] = "commitando"
+            JOBS[job_id]["votos_total"] = total
+
+        # Commit no GitHub (bloqueia até terminar, mas o usuário já vê "ok")
+        if GITHUB_OK:
+            git_commit_csv(
+                caminho_local=caminho_saida,
+                caminho_repo=caminho_repo,
+                mensagem=f"Adiciona CSV: {nome} ({CARGOS[cargo_key]['nome']})"
+            )
+
+        with JOBS_LOCK:
+            JOBS[job_id]["status"] = "ok"
+            JOBS[job_id]["mensagem"] = f"Salvo com sucesso ({total:,} votos)"
+
+    except Exception as e:
+        traceback.print_exc()
+        with JOBS_LOCK:
+            JOBS[job_id]["status"] = "erro"
+            JOBS[job_id]["mensagem"] = str(e)
+
 
 @app.route("/api/importar", methods=["POST"])
 def importar():
@@ -284,55 +347,49 @@ def importar():
     if os.path.exists(caminho_saida):
         return jsonify({"ok": True, "id": cand_id, "nome": nome,
                         "cargo": cargo_key, "ja_existia": True,
-                        "commit_github": False})
+                        "mensagem": "Candidato já está na base"})
 
-    municipios = municipios_pe()
+    job_id = uuid.uuid4().hex[:12]
+    with JOBS_LOCK:
+        JOBS[job_id] = {
+            "status": "baixando",
+            "progresso": 0,
+            "total": 0,
+            "nome": nome,
+            "cargo": cargo_key,
+            "candidato_id": cand_id,
+            "votos_total": 0,
+            "mensagem": "",
+        }
 
-    # Download paralelo (20 threads) — ~10s em vez de ~60s
-    def baixar_um(mun):
-        cod_mun = mun["cd"]
-        nome_mun = mun["nm"]
-        url = url_votos(cargo_key, cod_mun)
-        try:
-            dados = baixar_json(url, timeout=15)
-            votos = votos_do_candidato_em(dados, nome)
-            return (nome_mun.upper(), votos)
-        except Exception:
-            return (nome_mun.upper(), 0)
-
-    resultados = []
-    with ThreadPoolExecutor(max_workers=20) as ex:
-        futuros = [ex.submit(baixar_um, m) for m in municipios]
-        for f in as_completed(futuros):
-            resultados.append(f.result())
-
-    resultados.sort(key=lambda x: x[0])
-    total = sum(v for _, v in resultados)
-    registros = [{"municipio": m, nome: v} for m, v in resultados]
-    registros.append({"municipio": "TOTAL", nome: total})
-
-    df = pd.DataFrame(registros)
-    df.to_csv(caminho_saida, index=False, encoding="utf-8-sig")
-
-    # Commit no GitHub em thread separada (não bloqueia a resposta)
-    def commit_em_background():
-        git_commit_csv(
-            caminho_local=caminho_saida,
-            caminho_repo=caminho_repo,
-            mensagem=f"Adiciona CSV: {nome} ({CARGOS[cargo_key]['nome']})"
-        )
-
-    if GITHUB_OK:
-        threading.Thread(target=commit_em_background, daemon=True).start()
+    t = threading.Thread(
+        target=_processar_importacao,
+        args=(job_id, nome, cargo_key, cand_id, caminho_saida, caminho_repo),
+        daemon=True,
+    )
+    t.start()
 
     return jsonify({
-        "ok": True, "id": cand_id, "nome": nome,
-        "cargo": cargo_key, "total": total,
-        "commit_github": GITHUB_OK,
-    })
+        "ok": True,
+        "job_id": job_id,
+        "nome": nome,
+        "candidato_id": cand_id,
+        "cargo": cargo_key,
+        "github_configurado": GITHUB_OK,
+    }), 202
+
+
+@app.route("/api/importar/status/<job_id>")
+def importar_status(job_id):
+    with JOBS_LOCK:
+        job = JOBS.get(job_id)
+        if not job:
+            return jsonify({"erro": "job não encontrado"}), 404
+        return jsonify(job)
+
 
 if __name__ == "__main__":
     porta = int(os.environ.get("PORT", 5000))
     print(f"Servidor rodando em http://0.0.0.0:{porta}")
     print(f"GitHub configurado: {GITHUB_OK}")
-    app.run(host="0.0.0.0", port=porta, debug=False)
+    app.run(host="0.0.0.0", port=porta, debug=False, threaded=True)
