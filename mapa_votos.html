@@ -198,6 +198,10 @@
 
     <div class="stat-card">
       <h3>Como usar</h3>
+          <div class="stat-card" id="statusGithub">
+      <h3>Conexão com GitHub</h3>
+      <div class="sub" id="statusGithubTexto">Verificando...</div>
+    </div>
       <div class="sub">
         Escolha o cargo, depois o candidato. Passe o mouse sobre um município
         para destacá-lo, clique para ver os detalhes.
@@ -848,7 +852,10 @@ async function importarCandidato(nome, cargo){
     });
     const data = await r.json();
     if(data.erro){ status.innerText = 'Erro: '+data.erro; return; }
-    status.innerText = `✅ ${data.nome} salvo (${(data.total||0).toLocaleString('pt-BR')} votos).`;
+        const msgCommit = data.commit_github
+      ? ' — salvo no GitHub ✅ (redeploy em ~2 min)'
+      : ' — salvo localmente (GitHub não configurado)';
+    status.innerText = `✅ ${data.nome} (${(data.total||0).toLocaleString('pt-BR')} votos)${msgCommit}`;
     await carregarListaCandidatos();
     document.getElementById('candidatoSelect').value = data.id;
     await carregarVotos(data.id);
@@ -893,6 +900,14 @@ async function bootstrap(){
       atualizarCores();
       atualizarSidebar('',0,{});
     }
+        // Verifica conexão com GitHub
+    try{
+      const r = await fetch('/api/status');
+      const s = await r.json();
+      document.getElementById('statusGithubTexto').innerHTML = s.github_configurado
+        ? `✅ Conectado a <b>${s.owner}/${s.repo}</b> (${s.candidatos_locais} CSVs)`
+        : '⚠️ Não configurado. Novos candidatos não serão persistidos.';
+    }catch(_){}
     document.getElementById('loading').style.display='none';
   }catch(e){
     console.error(e);
