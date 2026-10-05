@@ -20,21 +20,53 @@
     box-shadow:0 4px 6px -1px rgba(0,0,0,.3);gap:1rem;flex-wrap:wrap}
   .header-title h1{font-size:1.15rem;font-weight:700;display:flex;align-items:center;gap:.5rem}
   .header-title p{font-size:.78rem;color:var(--text-muted)}
-  .search-box{position:relative;width:280px}
+  .search-box{position:relative;width:280px;display:none}
   .search-box input{width:100%;padding:.55rem 1rem;border-radius:8px;
     border:1px solid var(--border-color);background:var(--bg-primary);color:var(--text-main);
     font-size:.875rem;outline:none;transition:border-color .2s}
   .search-box input:focus{border-color:var(--accent-hover)}
-  .main-container{display:flex;flex:1;position:relative}
-  #map{flex:1;height:100%;background:#0f172a}
+  .main-container{display:flex;flex:1;position:relative;min-height:0}
+  #map{flex:1;height:100%;background:#0f172a;display:none}
+
+  /* --- Modo mapa fechado --- */
+  body.mapa-fechado .main-container{
+    justify-content:center;align-items:flex-start;
+    padding:1.5rem 1rem;overflow-y:auto;
+  }
+  body.mapa-fechado .sidebar{
+    width:100%;max-width:1100px;
+    border-left:none;border:1px solid var(--border-color);
+    border-radius:12px;height:fit-content;max-height:none;
+    padding:1.25rem;
+  }
+  body.mapa-fechado .lista-municipios{
+    max-height:none;overflow:visible;
+    display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));
+    gap:.35rem;padding:.5rem;
+  }
+
+  /* --- Sidebar --- */
   .sidebar{width:330px;background:var(--bg-card);border-left:1px solid var(--border-color);
     padding:1.2rem;overflow-y:auto;display:flex;flex-direction:column;gap:1rem}
+
+  .btn-toggle-mapa{
+    display:flex;align-items:center;justify-content:center;gap:.5rem;
+    width:100%;padding:.85rem 1rem;border-radius:8px;border:0;
+    background:linear-gradient(135deg,#4f46e5,#7c3aed);
+    color:#fff;font-family:inherit;font-size:.9rem;font-weight:700;
+    cursor:pointer;transition:filter .15s,transform .1s;
+    box-shadow:0 4px 12px rgba(79,70,229,.35);
+  }
+  .btn-toggle-mapa:hover{filter:brightness(1.12)}
+  .btn-toggle-mapa:active{transform:scale(.98)}
+
   .stat-card{background:var(--bg-primary);border:1px solid var(--border-color);
     border-radius:8px;padding:.85rem 1rem}
   .stat-card h3{font-size:.72rem;text-transform:uppercase;color:var(--text-muted);
     letter-spacing:.05em;margin-bottom:.35rem}
   .stat-card .number{font-size:1.35rem;font-weight:700;color:var(--accent-hover)}
   .stat-card .sub{font-size:.78rem;color:var(--text-muted);margin-top:.25rem}
+
   .select-wrap{background:var(--bg-primary);border:1px solid var(--border-color);
     border-radius:8px;padding:.9rem 1rem}
   .select-wrap label{display:block;font-size:.72rem;text-transform:uppercase;
@@ -52,21 +84,41 @@
     background:var(--accent-hover);color:#0b1f44;font-family:inherit;font-weight:700;
     font-size:.83rem;cursor:pointer;transition:background .15s}
   .btn:hover{background:#a5b4fc}
+
+  /* Legenda */
   .legend-box{display:flex;flex-direction:column;gap:.45rem;font-size:.8rem}
   .legend-item{display:flex;align-items:center;gap:.6rem}
   .color-swatch{width:24px;height:14px;border-radius:3px;flex-shrink:0}
-  .top-list{display:flex;flex-direction:column;gap:.35rem;font-size:.8rem}
-  .top-list .row{display:flex;justify-content:space-between;gap:.5rem;
-    padding:.3rem .4rem;border-radius:4px;background:#0b1220}
-  .top-list .row span:first-child{color:var(--text-muted);overflow:hidden;
-    text-overflow:ellipsis;white-space:nowrap;flex:1}
-  .top-list .row span:last-child{font-weight:700;color:var(--accent-hover)}
-  #loading{position:absolute;top:0;left:0;width:100%;height:100%;
-    background:rgba(15,23,42,.9);backdrop-filter:blur(4px);z-index:2000;
+
+  /* Lista de municípios */
+  .lista-wrap{padding:0;overflow:hidden}
+  .lista-header{display:flex;justify-content:space-between;align-items:center;
+    padding:.85rem 1rem;border-bottom:1px solid var(--border-color)}
+  .lista-header h3{margin:0}
+  .lista-count{background:var(--accent-hover);color:#0b1f44;
+    padding:2px 8px;border-radius:10px;font-size:.7rem;font-weight:800}
+  .lista-municipios{display:flex;flex-direction:column;gap:1px;
+    max-height:420px;overflow-y:auto;padding:.25rem}
+  .municipio-row{display:flex;align-items:center;gap:.5rem;
+    padding:.5rem .65rem;cursor:pointer;transition:background .12s;border-radius:4px}
+  .municipio-row:hover{background:#25324a}
+  .municipio-row .num{color:var(--text-muted);font-size:.68rem;
+    min-width:22px;text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
+  .municipio-row .nome{flex:1;font-size:.82rem;overflow:hidden;
+    text-overflow:ellipsis;white-space:nowrap}
+  .municipio-row .votos{font-weight:700;color:var(--accent-hover);
+    font-size:.82rem;font-variant-numeric:tabular-nums}
+  .municipio-row .votos.zero{color:var(--text-muted);font-weight:400}
+
+  /* Loading */
+  #loading{position:fixed;top:0;left:0;width:100%;height:100%;
+    background:rgba(15,23,42,.95);backdrop-filter:blur(4px);z-index:2000;
     display:flex;flex-direction:column;justify-content:center;align-items:center;gap:1rem}
   .spinner{width:48px;height:48px;border:4px solid var(--border-color);
     border-top-color:var(--accent-hover);border-radius:50%;animation:spin 1s linear infinite}
   @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* Modais */
   .modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;
     background:rgba(0,0,0,.75);backdrop-filter:blur(5px);z-index:3000;
     display:none;justify-content:center;align-items:center;padding:1rem}
@@ -87,52 +139,49 @@
     display:block;margin-bottom:.2rem}
   .info-group .value{font-size:1rem;font-weight:600;color:var(--text-main)}
   .info-group .value.big{font-size:1.4rem;color:var(--accent-hover);font-weight:800}
+
   .search-modal-input{width:100%;padding:.7rem 1rem;border-radius:8px;
     border:1px solid var(--border-color);background:var(--bg-primary);color:var(--text-main);
     font-family:inherit;font-size:.9rem;outline:none;margin-bottom:.8rem}
   .search-modal-input:focus{border-color:var(--accent-hover)}
-  .search-results{max-height:340px;overflow-y:auto;display:flex;flex-direction:column;gap:.35rem}
+  .search-results{max-height:340px;overflow-y:auto;display:flex;
+    flex-direction:column;gap:.35rem}
   .search-result{padding:.6rem .8rem;background:var(--bg-primary);border-radius:6px;
     border:1px solid var(--border-color);cursor:pointer;font-size:.85rem;
     display:flex;justify-content:space-between;gap:.6rem;align-items:center}
   .search-result:hover{background:#25324a;border-color:var(--accent-hover)}
   .search-result .partido{color:var(--text-muted);font-size:.75rem}
   .status-msg{font-size:.8rem;color:var(--accent-hover);margin-top:.6rem;min-height:1.2rem}
+
   .leaflet-tooltip-custom{background:var(--bg-card);border:1px solid var(--border-color);
     color:var(--text-main);font-family:'Inter',sans-serif;font-weight:600;
     border-radius:6px;padding:6px 12px;box-shadow:0 4px 6px -1px rgba(0,0,0,.4)}
-  /* Rótulo numérico sobre cada município */
   .municipio-votos-label{background:transparent;border:0;pointer-events:none}
   .municipio-votos-label .pill{
-    display:inline-block;
-    background:rgba(30,27,75,0.88);
-    color:#ffffff;
-    padding:2px 5px;
-    border-radius:4px;
-    font-family:'Inter',sans-serif;
-    font-size:10px;
-    font-weight:900;
-    line-height:1;
-    letter-spacing:-0.2px;
+    display:inline-block;background:rgba(30,27,75,0.88);color:#fff;
+    padding:2px 5px;border-radius:4px;font-family:'Inter',sans-serif;
+    font-size:10px;font-weight:900;line-height:1;letter-spacing:-0.2px;
     border:1px solid rgba(255,255,255,0.35);
-    box-shadow:0 1px 3px rgba(0,0,0,.5);
-    white-space:nowrap;
+    box-shadow:0 1px 3px rgba(0,0,0,.5);white-space:nowrap;
   }
   .municipio-votos-label .pill.zero{
-    background:rgba(148,163,184,0.65);
-    color:#1e293b;
-    border-color:rgba(255,255,255,0.5);
-    font-weight:700;
+    background:rgba(148,163,184,0.65);color:#1e293b;
+    border-color:rgba(255,255,255,0.5);font-weight:700;
   }
   .municipio-votos-label .pill.small{font-size:9px;padding:1px 4px}
+
   @media (max-width:900px){
     body{display:block;overflow-y:auto;height:auto;min-height:100dvh}
     header{position:sticky;top:0;z-index:1500}
-    .main-container{flex-direction:column;padding:.8rem 0}
+    .main-container{flex-direction:column;padding:.8rem 0;min-height:0;overflow:visible}
     #map{width:calc(100% - 1.5rem);max-width:900px;height:55dvh;min-height:340px;
-      margin:0 auto;border-radius:12px;border:1px solid var(--border-color);overflow:hidden}
-    .sidebar{width:calc(100% - 1.5rem);max-width:900px;margin:.8rem auto 0;
+      margin:0 auto 1rem;border-radius:12px;border:1px solid var(--border-color);overflow:hidden}
+    .sidebar{width:calc(100% - 1.5rem);max-width:900px;margin:0 auto;
       border-radius:12px;border:1px solid var(--border-color)}
+    body.mapa-fechado .main-container{padding:.8rem 0;overflow:visible}
+    body.mapa-fechado .sidebar{margin:0 auto}
+    .lista-municipios{max-height:none}
+    body.mapa-fechado .lista-municipios{display:flex;flex-direction:column}
   }
 </style>
 </head>
@@ -140,7 +189,7 @@
 
 <div id="loading">
   <div class="spinner"></div>
-  <p style="color:var(--text-main);font-weight:500">Carregando mapa e candidatos...</p>
+  <p style="color:var(--text-main);font-weight:500">Carregando candidatos...</p>
 </div>
 
 <header>
@@ -148,7 +197,7 @@
     <h1>🗳️ Pernambuco — Votação por Município</h1>
     <p id="subtituloCandidato">Nenhum candidato selecionado</p>
   </div>
-  <div class="search-box">
+  <div class="search-box" id="searchBox">
     <input type="text" id="searchInput" placeholder="Buscar município no mapa..." list="municipiosList">
     <datalist id="municipiosList"></datalist>
   </div>
@@ -158,6 +207,8 @@
   <div id="map"></div>
 
   <div class="sidebar">
+    <button class="btn-toggle-mapa" id="btnToggleMapa">🗺️ Mostrar mapa</button>
+
     <div class="select-wrap">
       <label>Cargo</label>
       <div class="cargo-tabs" id="cargoTabs"></div>
@@ -172,7 +223,7 @@
 
     <button class="btn" id="btnNovo">➕ Buscar novo candidato</button>
 
-    <div class="select-wrap">
+    <div class="select-wrap" id="wrapToggleLabels" style="display:none;">
       <label style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;margin-bottom:0;">
         <span>Rótulos numéricos no mapa</span>
         <input type="checkbox" id="toggleLabels" checked
@@ -186,9 +237,12 @@
       <div class="sub" id="totalMunicipios">0 municípios com votos</div>
     </div>
 
-    <div class="stat-card">
-      <h3>Top 5 municípios</h3>
-      <div class="top-list" id="topMunicipios"></div>
+    <div class="stat-card lista-wrap">
+      <div class="lista-header">
+        <h3>Municípios por votos</h3>
+        <span class="lista-count" id="listaCount">0</span>
+      </div>
+      <div class="lista-municipios" id="listaMunicipios"></div>
     </div>
 
     <div class="stat-card">
@@ -197,15 +251,8 @@
     </div>
 
     <div class="stat-card">
-      <h3>Como usar</h3>
-          <div class="stat-card" id="statusGithub">
       <h3>Conexão com GitHub</h3>
       <div class="sub" id="statusGithubTexto">Verificando...</div>
-    </div>
-      <div class="sub">
-        Escolha o cargo, depois o candidato. Passe o mouse sobre um município
-        para destacá-lo, clique para ver os detalhes.
-      </div>
     </div>
   </div>
 </div>
@@ -235,7 +282,7 @@
   </div>
 </div>
 
-<!-- Modal de busca de novo candidato -->
+<!-- Modal de busca -->
 <div class="modal-overlay" id="modalBusca">
   <div class="modal-card">
     <button class="modal-close" onclick="fecharBusca()">×</button>
@@ -441,8 +488,11 @@ const sheetData = {
 };
 
 // ---------- Estado global ----------
-let map, geojsonLayer;
+let map = null;
+let geojsonLayer = null;
 let layerMap = {};
+let geoDataGlobal = null;
+let municipiosList = [];   // [{key, nome, feature}]
 let votosAtuais = {};
 let candidatoAtual = null;
 let cargoAtual = "ESTADUAL";
@@ -450,6 +500,7 @@ let cargosDisponiveis = [];
 let escala = { thresholds: [], colors: [] };
 let selectedLayer = null;
 let labelsVisiveis = true;
+let mapaAberto = false;
 
 // ---------- Paleta azul → roxo ----------
 const COLOR_ZERO    = '#e8e8ee';
@@ -476,7 +527,6 @@ function quantile(arr,p){
   const lo=Math.floor(idx), hi=Math.ceil(idx);
   return arr[lo]+(arr[hi]-arr[lo])*(idx-lo);
 }
-
 function calcularEscala(votos){
   const naoZero = Object.values(votos).filter(v=>v>0).sort((a,b)=>a-b);
   if(naoZero.length===0){
@@ -486,7 +536,6 @@ function calcularEscala(votos){
   const q = [0.2,0.4,0.6,0.8].map(p=>quantile(naoZero,p));
   escala = { thresholds:q, colors: COLOR_PALETTE };
 }
-
 function corParaVotos(v){
   if(!v || v<=0) return COLOR_ZERO;
   for(let i=escala.thresholds.length-1;i>=0;i--){
@@ -495,7 +544,7 @@ function corParaVotos(v){
   return escala.colors[0];
 }
 
-// ---------- Mapa ----------
+// ---------- Mapa (inicializado apenas quando o usuário abre) ----------
 function initMap(){
   map = L.map('map',{zoomControl:true,attributionControl:false}).setView([-8.38,-37.86],8);
   L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
@@ -542,43 +591,43 @@ function styleFromInfo(info){
     weight: 1.1, opacity: 1, color: '#0f172a', fillOpacity: 0.9
   };
 }
-
 function tooltipHtml(info){
   return `<b>${info.nome}</b><br>
           <small>${info.rd}</small><br>
           <small><b>Votos: ${info.votos.toLocaleString('pt-BR')}</b></small>`;
 }
-
 function iconVotos(v){
   let txt, cssClass = 'pill';
-  if(!v || v <= 0){
-    txt = '·';
-    cssClass += ' zero';
-  } else if(v >= 1000){
-    txt = (v/1000).toFixed(1).replace('.', ',') + 'k';
-  } else {
-    txt = String(v);
-    if(v < 10) cssClass += ' small';
-  }
+  if(!v || v <= 0){ txt = '·'; cssClass += ' zero'; }
+  else if(v >= 1000){ txt = (v/1000).toFixed(1).replace('.', ',') + 'k'; }
+  else { txt = String(v); if(v < 10) cssClass += ' small'; }
   return L.divIcon({
     className: 'municipio-votos-label',
     html: `<span class="${cssClass}">${txt}</span>`,
-    iconSize: [44, 18],
-    iconAnchor: [22, 9]
+    iconSize: [44, 18], iconAnchor: [22, 9]
   });
 }
 
-function renderGeoJson(geo){
+function buildMunicipiosList(geo){
+  municipiosList = geo.features.map(f => {
+    const info = infoMunicipio(f);
+    return { key: info.key, nome: info.nome, feature: f };
+  });
+  // Ordena alfabeticamente por padrão (será reordenado por votos na renderização)
+  municipiosList.sort((a,b)=> a.nome.localeCompare(b.nome, 'pt-BR'));
+}
+
+function renderGeoJson(){
+  if(!geoDataGlobal) return;
   if(geojsonLayer) map.removeLayer(geojsonLayer);
   layerMap = {};
-  const labelsPendentes = [];
+  const pendentes = [];
 
-  geojsonLayer = L.geoJSON(geo,{
+  geojsonLayer = L.geoJSON(geoDataGlobal,{
     style: f => styleFromInfo(infoMunicipio(f)),
     onEachFeature:(feature,layer)=>{
       const info = infoMunicipio(feature);
       layerMap[info.key] = { layer, info, labelMarker:null };
-
       layer.bindTooltip(tooltipHtml(info),{
         className:'leaflet-tooltip-custom',direction:'top',sticky:true
       });
@@ -592,17 +641,17 @@ function renderGeoJson(geo){
         mouseout:e=>{ if(layer!==selectedLayer) e.target.setStyle(styleFromInfo(info)); },
         click:()=>selectMunicipio(layer,info)
       });
-      labelsPendentes.push(info.key);
+      pendentes.push(info.key);
     }
   }).addTo(map);
 
-  // Cria os marcadores de rótulo após o layer entrar no mapa
-  labelsPendentes.forEach(key=>{
+  // Cria rótulos após o layer estar no mapa
+  pendentes.forEach(key=>{
     const item = layerMap[key];
     if(!item) return;
     try{
       const center = item.layer.getBounds().getCenter();
-      item.labelMarker = L.marker(center, {
+      item.labelMarker = L.marker(center,{
         interactive:false, keyboard:false, icon: iconVotos(0)
       });
       if(labelsVisiveis) item.labelMarker.addTo(map);
@@ -611,7 +660,7 @@ function renderGeoJson(geo){
         const latlngs = item.layer.getLatLngs();
         const flat = Array.isArray(latlngs) ? latlngs.flat(2).find(x=>x&&x.lat!==undefined) : null;
         if(flat){
-          item.labelMarker = L.marker(flat, {
+          item.labelMarker = L.marker(flat,{
             interactive:false, keyboard:false, icon: iconVotos(0)
           });
           if(labelsVisiveis) item.labelMarker.addTo(map);
@@ -623,6 +672,8 @@ function renderGeoJson(geo){
   if(geojsonLayer.getBounds().isValid()){
     map.fitBounds(geojsonLayer.getBounds(),{padding:[20,20]});
   }
+
+  // Popula datalist do search
   const dl = document.getElementById('municipiosList');
   dl.innerHTML = '';
   Object.values(layerMap).forEach(item=>{
@@ -630,14 +681,17 @@ function renderGeoJson(geo){
     opt.value = item.info.nome;
     dl.appendChild(opt);
   });
+
+  // Aplica cores/votos atualizados
+  atualizarCores();
 }
 
 function atualizarCores(){
+  if(map === null) return;
   Object.values(layerMap).forEach(item=>{
     item.info.votos = votosAtuais[item.info.key] || 0;
     item.layer.setStyle(styleFromInfo(item.info));
     item.layer.setTooltipContent(tooltipHtml(item.info));
-
     if(item.labelMarker){
       item.labelMarker.setIcon(iconVotos(item.info.votos));
       if(labelsVisiveis){
@@ -687,27 +741,89 @@ document.getElementById('modalOverlay').addEventListener('click',e=>{
 });
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') fecharModal(); });
 
+// ---------- Toggle do mapa ----------
+function mostrarMapa(){
+  if(map === null){
+    document.getElementById('map').style.display = 'block';
+    initMap();
+    renderGeoJson();
+  } else {
+    document.getElementById('map').style.display = 'block';
+    setTimeout(()=>map.invalidateSize(), 50);
+  }
+  document.body.classList.remove('mapa-fechado');
+  document.getElementById('searchBox').style.display = 'block';
+  document.getElementById('wrapToggleLabels').style.display = 'block';
+  document.getElementById('btnToggleMapa').innerHTML = '🗺️ Esconder mapa';
+  mapaAberto = true;
+  // Re-renderiza a lista para o layout de coluna única
+  renderListaMunicipios();
+}
+
+function esconderMapa(){
+  document.getElementById('map').style.display = 'none';
+  document.body.classList.add('mapa-fechado');
+  document.getElementById('searchBox').style.display = 'none';
+  document.getElementById('wrapToggleLabels').style.display = 'none';
+  document.getElementById('btnToggleMapa').innerHTML = '🗺️ Mostrar mapa';
+  mapaAberto = false;
+  renderListaMunicipios();
+}
+
+function toggleMapa(){
+  if(mapaAberto) esconderMapa();
+  else mostrarMapa();
+}
+
+// ---------- Lista de municípios ----------
+function renderListaMunicipios(){
+  const cont = document.getElementById('listaMunicipios');
+  const count = document.getElementById('listaCount');
+  if(!cont) return;
+
+  const items = municipiosList
+    .map(m => ({ ...m, votos: votosAtuais[m.key] || 0 }))
+    .sort((a,b) => b.votos - a.votos || a.nome.localeCompare(b.nome,'pt-BR'));
+
+  const comVotos = items.filter(x => x.votos > 0).length;
+  count.innerText = `${items.length} · ${comVotos} c/ votos`;
+
+  // Fragmento para performance
+  const frag = document.createDocumentFragment();
+  items.forEach((m, i) => {
+    const row = document.createElement('div');
+    row.className = 'municipio-row';
+    const votosClass = m.votos > 0 ? 'votos' : 'votos zero';
+    row.innerHTML = `
+      <span class="num">${i+1}</span>
+      <span class="nome" title="${m.nome}">${m.nome}</span>
+      <span class="${votosClass}">${m.votos.toLocaleString('pt-BR')}</span>
+    `;
+    row.addEventListener('click', () => {
+      const info = infoMunicipio(m.feature);
+      abrirModal(info);
+      if(mapaAberto && layerMap[m.key]){
+        map.fitBounds(layerMap[m.key].layer.getBounds(), { maxZoom: 11 });
+        selectMunicipio(layerMap[m.key].layer, layerMap[m.key].info);
+      }
+    });
+    frag.appendChild(row);
+  });
+
+  cont.innerHTML = '';
+  cont.appendChild(frag);
+}
+
 // ---------- Sidebar ----------
 function atualizarSidebar(nome,total,votos,cargoNome){
   document.getElementById('subtituloCandidato').innerText =
-    nome ? `${cargoNome||''} ${cargoNome?':':''} ${nome}`.trim() : 'Nenhum candidato selecionado';
+    nome ? `${cargoNome||''}${cargoNome?':':''} ${nome}`.trim() : 'Nenhum candidato selecionado';
   document.getElementById('totalVotos').innerText = total.toLocaleString('pt-BR');
   const municipios = Object.entries(votos).filter(([_,v])=>v>0);
   document.getElementById('totalMunicipios').innerText =
     `${municipios.length} município${municipios.length===1?'':'s'} com votos`;
-  const top = municipios.sort((a,b)=>b[1]-a[1]).slice(0,5);
-  const cont = document.getElementById('topMunicipios');
-  cont.innerHTML = '';
-  if(top.length===0){
-    cont.innerHTML = '<div class="row"><span>(sem votos)</span><span>0</span></div>';
-  } else {
-    top.forEach(([m,v])=>{
-      const row = document.createElement('div');
-      row.className='row';
-      row.innerHTML = `<span title="${m}">${m}</span><span>${v.toLocaleString('pt-BR')}</span>`;
-      cont.appendChild(row);
-    });
-  }
+
+  // Legenda
   const leg = document.getElementById('legendaCores');
   leg.innerHTML = '';
   const addLeg = (cor,label)=>{
@@ -726,6 +842,9 @@ function atualizarSidebar(nome,total,votos,cargoNome){
     addLeg(COLOR_PALETTE[3], `${f(th[2])} a ${f(th[3])}`);
     addLeg(COLOR_PALETTE[4], `acima de ${f(th[3])}`);
   }
+
+  // Lista de municípios
+  renderListaMunicipios();
 }
 
 // ---------- Cargos ----------
@@ -750,7 +869,6 @@ function atualizarTabsCargo(){
     b.classList.toggle('active', b.dataset.cargo===cargoAtual);
   });
 }
-
 async function selecionarCargo(cargo){
   if(cargo === cargoAtual) return;
   cargoAtual = cargo;
@@ -781,7 +899,6 @@ async function carregarListaCandidatos(){
   });
   return lista;
 }
-
 async function carregarVotos(candId){
   const r = await fetch(`/api/votos/${candId}`);
   if(!r.ok) throw new Error('Falha ao buscar votos');
@@ -846,7 +963,6 @@ async function importarCandidato(nome, cargo){
   document.querySelectorAll('.search-result').forEach(d=>d.style.pointerEvents='none');
 
   try{
-    // 1) Dispara o job (retorna imediatamente)
     const r = await fetch('/api/importar',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
@@ -860,7 +976,6 @@ async function importarCandidato(nome, cargo){
       return;
     }
 
-    // Já existia
     if(data.ja_existia){
       status.innerText = `✅ ${data.nome} já estava na base.`;
       await carregarListaCandidatos();
@@ -870,10 +985,9 @@ async function importarCandidato(nome, cargo){
       return;
     }
 
-    // 2) Polling do progresso
     const jobId = data.job_id;
     const inicio = Date.now();
-    const TIMEOUT_MS = 5 * 60 * 1000;  // 5 minutos
+    const TIMEOUT_MS = 5 * 60 * 1000;
 
     while(true){
       await new Promise(res=>setTimeout(res, 2000));
@@ -912,14 +1026,13 @@ async function importarCandidato(nome, cargo){
     document.querySelectorAll('.search-result').forEach(d=>d.style.pointerEvents='auto');
   }
 }
-
 document.getElementById('btnNovo').addEventListener('click',abrirBusca);
 
-// ---------- Busca por município ----------
+// ---------- Busca por município (no mapa) ----------
 document.getElementById('searchInput').addEventListener('input',e=>{
   const v = normalizeStr(e.target.value);
   const it = layerMap[v] || Object.entries(layerMap).find(([k])=>k.startsWith(v))?.[1];
-  if(it) map.fitBounds(it.layer.getBounds(),{maxZoom:11});
+  if(it && map) map.fitBounds(it.layer.getBounds(),{maxZoom:11});
 });
 
 // ---------- Toggle de rótulos ----------
@@ -938,27 +1051,39 @@ document.getElementById('toggleLabels').addEventListener('change',e=>{
 // ---------- Bootstrap ----------
 async function bootstrap(){
   try{
-    initMap();
-    const geo = await fetchGeoJson();
+    // Estado inicial: mapa fechado
+    document.body.classList.add('mapa-fechado');
+
+    // Botão toggle
+    document.getElementById('btnToggleMapa').addEventListener('click', toggleMapa);
+
+    // Carrega GeoJSON (necessário para a lista e busca)
+    geoDataGlobal = await fetchGeoJson();
+    buildMunicipiosList(geoDataGlobal);
+
+    // Carrega cargos e candidatos
     await carregarCargos();
     const lista = await carregarListaCandidatos();
-    renderGeoJson(geo);
+
     if(lista.length>0){
       document.getElementById('candidatoSelect').value = lista[0].id;
       await carregarVotos(lista[0].id);
     } else {
       calcularEscala({});
-      atualizarCores();
       atualizarSidebar('',0,{});
     }
-        // Verifica conexão com GitHub
+
+    // Status do GitHub
     try{
       const r = await fetch('/api/status');
       const s = await r.json();
       document.getElementById('statusGithubTexto').innerHTML = s.github_configurado
         ? `✅ Conectado a <b>${s.owner}/${s.repo}</b> (${s.candidatos_locais} CSVs)`
         : '⚠️ Não configurado. Novos candidatos não serão persistidos.';
-    }catch(_){}
+    }catch(_){
+      document.getElementById('statusGithubTexto').innerText = 'Não foi possível verificar.';
+    }
+
     document.getElementById('loading').style.display='none';
   }catch(e){
     console.error(e);
